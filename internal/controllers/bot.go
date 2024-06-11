@@ -4,10 +4,12 @@ import (
 	"book_stealer_tgbot/config"
 	"book_stealer_tgbot/internal/lib/files"
 	"book_stealer_tgbot/internal/model"
+	"book_stealer_tgbot/internal/service/bookService"
 	"book_stealer_tgbot/internal/service/botService"
 	"book_stealer_tgbot/internal/service/serviceInterface"
 	"book_stealer_tgbot/internal/sessions"
 	"errors"
+	"fmt"
 	"log/slog"
 	"regexp"
 )
@@ -59,6 +61,13 @@ func (c *BotController) HandleMessage(chatId int64, msg string) {
 
 		books, hasNextPage, err := c.bookService.GetBooksForPage(chatId, &chatSession, 1)
 		if err != nil {
+			if errors.Is(err, bookService.ErrBooksNotFound) {
+				_ = c.botService.SendMessage(chatId, fmt.Sprintf(
+					"Не удалось найти книг по запросу: %s %s",
+					chatSession.BookTitle,
+					chatSession.Author,
+				))
+			}
 			slog.Error(
 				"got error from bookService.GetBooksForPage",
 				slog.String("op", op),
@@ -200,6 +209,7 @@ func (c *BotController) BackToTitle(chatId int64, msgId int) {
 	}
 
 	chatSession.ExpectingAuthor = false
+	chatSession.Author = ""
 	err = c.session.SetOrUpdateChatSession(chatId, chatSession)
 	if err != nil {
 		slog.Error(
@@ -251,6 +261,17 @@ func (c *BotController) SearchByBookTitle(chatId int64, msgId int) {
 
 	books, hasNextPage, err := c.bookService.GetBooksForPage(chatId, &chatSession, chatSession.CurTgPage)
 	if err != nil {
+		if errors.Is(err, bookService.ErrBooksNotFound) {
+			_ = c.botService.SendMessage(
+				chatId,
+				fmt.Sprintf(
+					"Не удалось найти книг по запросу: %s %s",
+					chatSession.BookTitle,
+					chatSession.Author,
+				),
+				msgId,
+			)
+		}
 		slog.Error(
 			"got error from bookService.GetBooksForPage",
 			slog.String("op", op),
@@ -410,7 +431,7 @@ func (c *BotController) SendToKindle(chatId int64, msgId int) {
 	_ = c.botService.SendMessage(
 		chatId,
 		"Книга успешно отправлена на ваш kindle. Если kindle подключен к wifi - то через несколько минут книга должна отобразиться. "+
-			"Возможно придет письмо от Amazon на почту, с подтверждением скачивания книги на kindle. Нужно нажать \"verify request\".",
+			"Возможно придет письмо от Amazon на почту, с подтверждением скачивания книги на kindle. Нужно нажать \"verify request\".\n\nЕсли книга не приходит - удостоверьтесь что вы привязали правильный email, а также добавили адрес booksender@kotfedot-projects.ru в белый список отправителей. Подробнее в команде /help",
 	)
 }
 
@@ -442,7 +463,7 @@ func (c *BotController) HandleCommandStart(chatId int64) {
 }
 
 func (c *BotController) HandleCommandHelp(chatId int64) {
-	_ = c.botService.SendMessage(chatId, "Чтобы найти книгу - просто введи ее название.\n\nЕсли у тебя есть электронная книга от Amazon - то ты можешь привязать свой send-to-kindle email вызвав команду /email и отправлять книги сразу на свою электронную книгу (возможность отправки книги на email появится только если у найденной книги будет предоставлен формат epub).")
+	_ = c.botService.SendMessage(chatId, "Чтобы найти книгу - просто введи ее название.\n\nЕсли у тебя есть электронная книга от Amazon - то ты можешь привязать свой send-to-kindle email вызвав команду /email и отправлять книги сразу на свою электронную книгу (возможность отправки книги на email появится только если у найденной книги будет предоставлен формат epub).\n\nВажно! Чтобы книги успешно приходили на kindle добавь email booksender@kotfedot-projects.ru в Approved Personal Document E-mail List. Для этого зайди в аккаунт Amazon (content & devices -> preferences -> personal document settings -> Approved Personal Document E-mail List)")
 }
 
 func (c *BotController) SetOrUpdateEmail(chatId int64, msgId int) {
@@ -544,7 +565,7 @@ func (c *BotController) NextPage(chatId int64, msgId int) {
 			slog.String("op", op),
 			slog.String("err", err.Error()),
 		)
-		_ = c.botService.SendMessage(chatId, "Что-то пошло не так...", msgId)
+		_ = c.botService.SendMessage(chatId, "Что-то пошло не так...")
 		return
 	}
 
@@ -596,7 +617,7 @@ func (c *BotController) PrevPage(chatId int64, msgId int) {
 			slog.String("op", op),
 			slog.String("err", err.Error()),
 		)
-		_ = c.botService.SendMessage(chatId, "Что-то пошло не так...", msgId)
+		_ = c.botService.SendMessage(chatId, "Что-то пошло не так...")
 		return
 	}
 
