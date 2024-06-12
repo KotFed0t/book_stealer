@@ -72,11 +72,11 @@ func (s *TgBotService) SendBooksForPage(
 	cnt := (page - 1) * s.cfg.BooksPerPage
 	var rows [][]tgbotapi.InlineKeyboardButton
 	var row []tgbotapi.InlineKeyboardButton
-	for _, book := range books {
+	for i, book := range books {
 		cnt++
 		booksMessage += fmt.Sprintf("%d) %s \n\n", cnt, book.Title)
 		row = append(row, tgbotapi.NewInlineKeyboardButtonData(strconv.Itoa(cnt), book.Link))
-		if cnt%5 == 0 || cnt == len(books) {
+		if cnt%5 == 0 || i == len(books)-1 {
 			rows = append(rows, row)
 			row = nil
 		}
