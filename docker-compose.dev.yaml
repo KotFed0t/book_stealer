@@ -7,23 +7,32 @@ services:
       dockerfile: Dockerfile.dev
     volumes:
       - .:/usr/src/app
+    networks:
+      - book_stealer_network
+      - pg_network
 
   redis:
     image: redis:alpine
     restart: always
-    ports:
-      - "6379:6379"
+    networks:
+      - book_stealer_network
 
-  postgres:
-    image: postgres:alpine
-    environment:
-      - POSTGRES_USER=${PG_USER}
-      - POSTGRES_PASSWORD=${PG_PASSWORD}
-      - POSTGRES_DB=${PG_DB_NAME}
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres-db:/var/lib/postgresql/data
+  # postgres:
+  #   image: postgres:alpine
+  #   environment:
+  #     - POSTGRES_USER=${PG_USER}
+  #     - POSTGRES_PASSWORD=${PG_PASSWORD}
+  #     - POSTGRES_DB=${PG_DB_NAME}
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres-db:/var/lib/postgresql/data
 
 volumes:
   postgres-db:
+
+networks:
+  pg_network:
+    external: true
+  book_stealer_network:
+    driver: bridge

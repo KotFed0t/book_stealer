@@ -3,12 +3,13 @@ package scrapperService
 import (
 	"book_stealer_tgbot/config"
 	"book_stealer_tgbot/internal/model"
-	"github.com/gocolly/colly/v2"
 	"log/slog"
 	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/gocolly/colly/v2"
 )
 
 type FlibustaScrapperService struct {
@@ -19,24 +20,28 @@ func NewFlibustaScrapperService(cfg *config.Config) *FlibustaScrapperService {
 	return &FlibustaScrapperService{cfg: cfg}
 }
 
-func (f *FlibustaScrapperService) getCollectorWithProxy() (*colly.Collector, error) {
+func (f *FlibustaScrapperService) getCollector() (*colly.Collector, error) {
 	op := "FlibustaScrapperService.getCollectorWithProxy"
 	c := colly.NewCollector()
-	err := c.SetProxy(f.cfg.ProxyUrl)
-	if err != nil {
-		slog.Error(
-			"Failed to set proxy",
-			slog.String("op", op),
-			slog.String("err", err.Error()),
-		)
-		return nil, err
+
+	if f.cfg.ProxyUrl != "" {
+		err := c.SetProxy(f.cfg.ProxyUrl)
+		if err != nil {
+			slog.Error(
+				"Failed to set proxy",
+				slog.String("op", op),
+				slog.String("err", err.Error()),
+			)
+			return nil, err
+		}
 	}
+
 	return c, nil
 }
 
 func (f *FlibustaScrapperService) GetBooksPaginated(bookTitle string, author string, page int) (books []model.BookPreview, maxPage int, err error) {
 	op := "FlibustaScrapperService.GetBooksPaginated"
-	c, err := f.getCollectorWithProxy()
+	c, err := f.getCollector()
 	if err != nil {
 		slog.Error(
 			"Failed to get collector with set proxy",
@@ -108,7 +113,7 @@ func (f *FlibustaScrapperService) GetBooksPaginated(bookTitle string, author str
 
 func (f *FlibustaScrapperService) ParseBookPage(ref string) (book model.Book, err error) {
 	op := "FlibustaScrapperService.ParseBookPage"
-	c, err := f.getCollectorWithProxy()
+	c, err := f.getCollector()
 	if err != nil {
 		slog.Error(
 			"Failed to get collector with set proxy",
