@@ -33,7 +33,7 @@ func SendFile(cfg *config.Config, filePath string, to string) error {
 		cfg.Mail.Host,
 		mail.WithPort(cfg.Mail.Port),
 		mail.WithSMTPAuth(mail.SMTPAuthLogin),
-		mail.WithUsername(cfg.Mail.Address),
+		mail.WithUsername(cfg.Mail.Login),
 		mail.WithPassword(cfg.Mail.Password),
 		mail.WithTimeout(120*time.Second),
 	)

@@ -55,6 +55,7 @@ type Mail struct {
 	Port     int    `env:"MAIL_PORT"`
 	Address  string `env:"MAIL_ADDRESS"`
 	Password string `env:"MAIL_PASSWORD"`
+	Login    string `env:"MAIL_LOGIN"`
 }
 
 func MustLoad() *Config {
