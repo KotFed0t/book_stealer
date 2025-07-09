@@ -1,3 +1,5 @@
 redis.conf
 .env
 .idea
+todo.txt
+googleCredentials.json

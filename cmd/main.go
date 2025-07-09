@@ -2,92 +2,67 @@ package main
 
 import (
 	"book_stealer_tgbot/config"
+	"book_stealer_tgbot/data/cache"
 	"book_stealer_tgbot/data/db/postgres"
 	redisClient "book_stealer_tgbot/data/redis"
+	"book_stealer_tgbot/data/session"
 	"book_stealer_tgbot/internal/controllers"
+	"book_stealer_tgbot/internal/externalApi/cloudStorageApi/googleDriveApi"
+	"book_stealer_tgbot/internal/parser"
 	"book_stealer_tgbot/internal/repository"
-	"book_stealer_tgbot/internal/service/bookService"
-	"book_stealer_tgbot/internal/service/botService"
-	"book_stealer_tgbot/internal/service/scrapperService"
-	"book_stealer_tgbot/internal/sessions"
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"book_stealer_tgbot/internal/service/bookStealerService"
+	"book_stealer_tgbot/internal/tgbot"
+	"book_stealer_tgbot/internal/transport/telegram"
+	"context"
 	"log/slog"
 	"os"
 	"os/signal"
 	"regexp"
 	"sync"
 	"syscall"
+
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 func main() {
 	cfg := config.MustLoad()
 
-	var logLevel slog.Level
-
-	switch cfg.LogLevel {
-	case "debug":
-		logLevel = slog.LevelDebug
-	case "info":
-		logLevel = slog.LevelInfo
-	case "warning":
-		logLevel = slog.LevelWarn
-	case "error":
-		logLevel = slog.LevelError
-	default:
-		logLevel = slog.LevelInfo
-	}
-
-	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
-	slog.SetDefault(log)
+	setupLogger(cfg)
 
 	slog.Debug("config", slog.Any("cfg", cfg))
 
-	postgresDb := postgres.MustInitPostgres(cfg)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	postgresRepo := repository.NewBotRepo(postgresDb)
+	postgresDb := postgres.NewPostgresClient(cfg)
+	defer postgresDb.Close()
 
-	redis := redisClient.MustInitRedis(cfg)
+	postgresRepo := repository.NewPostgresRepo(postgresDb)
 
-	redisSession := sessions.NewRedisSession(redis)
+	redisClient := redisClient.MustInitRedis(cfg)
+	defer redisClient.Close()
 
-	bot, err := tgbotapi.NewBotAPI(cfg.Telegram.Token)
-	if err != nil {
-		panic(err)
-	}
+	redisSession := session.NewRedisSession(cfg, redisClient)
 
-	//if cfg.Env == "local" {
-	//	bot.Debug = true
-	//}
+	redisCache := cache.NewRedisCache(cfg, redisClient)
 
-	tgBotService := botService.NewTgBotService(postgresRepo, redisSession, bot, cfg)
+	booksParser := parser.NewFlibustaParser(cfg)
 
-	flibustaScrapperService := scrapperService.NewFlibustaScrapperService(cfg)
+	googleCloudStorage := googleDriveApi.New(ctx, cfg)
 
-	bookSrv := bookService.NewBookService(cfg, redisSession, flibustaScrapperService)
+	bookStealerService := bookStealerService.New(cfg, postgresRepo, redisCache, booksParser, googleCloudStorage)
 
-	botController := controllers.NewBotController(tgBotService, flibustaScrapperService, redisSession, cfg, bookSrv)
+	tgController := telegram.NewController(cfg, bookStealerService, redisSession)
 
-	slog.Info("Authorized on account", slog.String("bot_name", bot.Self.UserName))
+	tgBot := tgbot.New(cfg, tgController, redisSession)
 
-	u := tgbotapi.NewUpdate(0)
-	u.Timeout = cfg.Telegram.UpdTimeout
+	tgBot.Start()
+	defer tgBot.Stop()
 
-	updates := bot.GetUpdatesChan(u)
-
-	wg := &sync.WaitGroup{}
-	wg.Add(cfg.MaxGoroutineCnt)
-	for i := 0; i < cfg.MaxGoroutineCnt; i++ {
-		go handleUpdates(updates, botController, wg)
-	}
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 
 	<-interrupt
-	slog.Info("got interruption signal, start closing updates channel")
-	bot.StopReceivingUpdates()
-	slog.Info("updates channel is closed, waiting for all goroutines to finish")
-	wg.Wait()
-	slog.Info("all goroutines are done")
 }
 
 func handleUpdates(updates <-chan tgbotapi.Update, botController *controllers.BotController, wg *sync.WaitGroup) {
@@ -182,4 +157,24 @@ func handleUpdates(updates <-chan tgbotapi.Update, botController *controllers.Bo
 	}
 	slog.Info("Channel updates was closed, exit from goroutine")
 	wg.Done()
+}
+
+func setupLogger(cfg *config.Config) {
+	var logLevel slog.Level
+
+	switch cfg.LogLevel {
+	case "debug":
+		logLevel = slog.LevelDebug
+	case "info":
+		logLevel = slog.LevelInfo
+	case "warning":
+		logLevel = slog.LevelWarn
+	case "error":
+		logLevel = slog.LevelError
+	default:
+		logLevel = slog.LevelInfo
+	}
+
+	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
+	slog.SetDefault(log)
 }

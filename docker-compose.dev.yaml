@@ -1,17 +1,11 @@
 services:
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile.dev
-    volumes:
-      - .:/usr/src/app
-
   redis:
     image: redis:alpine
-    restart: always
+    ports:
+      - "6379:6379"
 
   postgres:
-    image: postgres:alpine
+    image: postgres:17-alpine
     environment:
       - POSTGRES_USER=${PG_USER}
       - POSTGRES_PASSWORD=${PG_PASSWORD}

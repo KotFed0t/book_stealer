@@ -1,23 +1,26 @@
 package config
 
 import (
+	"log"
+	"time"
+
 	"github.com/caarlos0/env/v11"
 	"github.com/joho/godotenv"
-	"log"
 )
 
 type Config struct {
-	Env             string `env:"ENV"`
-	LogLevel        string `env:"LOG_LEVEL"`
-	MaxGoroutineCnt int    `env:"MAX_GOROUTINE_CNT"`
-	FilesStorageDir string `env:"FILES_STORAGE_DIR"`
-	Postgres        Postgres
-	Telegram        Telegram
-	Flibusta        Flibusta
-	ProxyUrl        string `env:"PROXY_URL"`
-	Redis           Redis
-	Mail            Mail
-	BooksPerPage    int `env:"BOOKS_PER_PAGE"`
+	Env               string        `env:"ENV"`
+	LogLevel          string        `env:"LOG_LEVEL"`
+	MaxGoroutineCnt   int           `env:"MAX_GOROUTINE_CNT"`
+	ProxyUrl          string        `env:"PROXY_URL"`
+	BooksPerPage      int           `env:"BOOKS_PER_PAGE"`
+	SessionExpiration time.Duration `env:"SESSION_EXPIRATION"`
+	Redis             Redis
+	Mail              Mail
+	Postgres          Postgres
+	Telegram          Telegram
+	Flibusta          Flibusta
+	GoogleDrive       GoogleDrive
 }
 
 type Postgres struct {
@@ -31,11 +34,12 @@ type Postgres struct {
 	ConnMaxLifetime int    `env:"PG_CONN_MAX_LIFETIME"`
 	MaxIdleConns    int    `env:"PG_MAX_IDLE_CONNS"`
 	ConnMaxIdleTime int    `env:"PG_CONN_MAX_IDLE_TIME"`
+	MigrationDir    string `env:"PG_MIGRATION_DIR"`
 }
 
 type Telegram struct {
-	Token      string `env:"TELEGRAM_TOKEN"`
-	UpdTimeout int    `env:"TELEGRAM_UPD_TIMEOUT"`
+	Token      string        `env:"TELEGRAM_TOKEN"`
+	UpdTimeout time.Duration `env:"TELEGRAM_UPD_TIMEOUT"`
 }
 
 type Flibusta struct {
@@ -56,6 +60,11 @@ type Mail struct {
 	Address  string `env:"MAIL_ADDRESS"`
 	Password string `env:"MAIL_PASSWORD"`
 	Login    string `env:"MAIL_LOGIN"`
+}
+
+type GoogleDrive struct {
+	CredentialsFile string        `env:"GOOGLE_DRIVE_CREDENTIALS_FILE"`
+	FileTTL         time.Duration `env:"GOOGLE_DRIVE_FILE_TTL"`
 }
 
 func MustLoad() *Config {

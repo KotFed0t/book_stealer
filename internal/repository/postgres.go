@@ -7,15 +7,15 @@ import (
 	"log/slog"
 )
 
-type BotRepo struct {
+type Postgres struct {
 	db *sqlx.DB
 }
 
-func NewBotRepo(db *sqlx.DB) *BotRepo {
-	return &BotRepo{db}
+func NewPostgresRepo(db *sqlx.DB) *Postgres {
+	return &Postgres{db}
 }
 
-func (r *BotRepo) GetEmailByChatId(chatId int64) (email string, err error) {
+func (r *Postgres) GetEmailByChatId(chatId int64) (email string, err error) {
 	op := "BotRepo.GetEmailByChatId"
 
 	query := `SELECT email FROM emails WHERE chat_id = $1`
@@ -48,7 +48,7 @@ func (r *BotRepo) GetEmailByChatId(chatId int64) (email string, err error) {
 	return email, nil
 }
 
-func (r *BotRepo) UpsertEmail(chatId int64, email string) error {
+func (r *Postgres) UpsertEmail(chatId int64, email string) error {
 	op := "BotRepo.SetEmail"
 
 	_, err := r.db.Exec(`INSERT INTO emails (chat_id, email) VALUES ($1, $2) ON CONFLICT(chat_id) DO UPDATE SET email = EXCLUDED.email;`, chatId, email)
@@ -72,7 +72,7 @@ func (r *BotRepo) UpsertEmail(chatId int64, email string) error {
 	return nil
 }
 
-func (r *BotRepo) DeleteEmailByChatId(chatId int64) error {
+func (r *Postgres) DeleteEmailByChatId(chatId int64) error {
 	op := "BotRepo.DeleteEmail"
 	_, err := r.db.Exec("DELETE FROM emails WHERE chat_id = $1", chatId)
 	if err != nil {

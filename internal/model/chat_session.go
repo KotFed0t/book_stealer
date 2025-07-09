@@ -1,6 +1,6 @@
 package model
 
-type ChatSession struct {
+type Session struct {
 	ExpectingAuthor   bool
 	BookTitle, Author string
 	LastMsgId         int
