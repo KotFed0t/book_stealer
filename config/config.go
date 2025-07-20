@@ -21,6 +21,7 @@ type Config struct {
 	Telegram          Telegram
 	Flibusta          Flibusta
 	GoogleDrive       GoogleDrive
+	Cache             Cache
 }
 
 type Postgres struct {
@@ -43,8 +44,9 @@ type Telegram struct {
 }
 
 type Flibusta struct {
-	BaseUrl    string `env:"FLIBUSTA_BASE_URL"`
-	SearchPage string `env:"FLIBUSTA_SEARCH_PAGE"`
+	BaseUrl      string `env:"FLIBUSTA_BASE_URL"`
+	SearchPage   string `env:"FLIBUSTA_SEARCH_PAGE"`
+	BooksPerPage int    `env:"FLIBUSTA_BOOKS_PER_PAGE"`
 }
 
 type Redis struct {
@@ -65,6 +67,11 @@ type Mail struct {
 type GoogleDrive struct {
 	CredentialsFile string        `env:"GOOGLE_DRIVE_CREDENTIALS_FILE"`
 	FileTTL         time.Duration `env:"GOOGLE_DRIVE_FILE_TTL"`
+}
+
+type Cache struct {
+	RequestTTL   time.Duration `env:"CACHE_REQUEST_TTL"`
+	BooksPageTTL time.Duration `env:"CACHE_BOOKS_PAGE_TTL"`
 }
 
 func MustLoad() *Config {

@@ -2,12 +2,14 @@ package tgbot
 
 import (
 	"context"
+	"errors"
 	"log/slog"
-	"strconv"
 	"strings"
 
 	"book_stealer_tgbot/config"
+	"book_stealer_tgbot/data/session"
 	"book_stealer_tgbot/internal/model"
+	"book_stealer_tgbot/internal/model/tg/tgCallback.go"
 	"book_stealer_tgbot/internal/transport/telegram"
 	customMW "book_stealer_tgbot/internal/transport/telegram/middleware"
 	"book_stealer_tgbot/utils"
@@ -17,8 +19,8 @@ import (
 )
 
 type Session interface {
-	GetSession(ctx context.Context, key string) (model.Session, error)
-	SetSession(ctx context.Context, key string, session model.Session) error
+	GetSession(ctx context.Context, chatID int64) (model.Session, error)
+	SetSession(ctx context.Context, chatID int64, session model.Session) error
 }
 
 type TGBot struct {
@@ -60,16 +62,15 @@ func (b *TGBot) Stop() {
 func (b *TGBot) setupRoutes() {
 	// commands
 	b.bot.Handle("/start", b.ctrl.Start)
-	b.bot.Handle("/create_stocks_portfolio", b.ctrl.InitStocksPortfolioCreation)
-	b.bot.Handle("/my_portfolios", b.ctrl.GetPortfolios)
+	b.bot.Handle("/help", b.ctrl.Help)
 
 	// text
 	b.bot.Handle(tele.OnText, func(c tele.Context) error {
 		// получение сесии и выбор метода контроллера на основе шага пользователя
 		ctx := utils.CreateCtxWithRqID(c)
 		rqID := utils.GetRequestIDFromCtx(ctx)
-		chatSession, err := b.session.GetSession(ctx, strconv.FormatInt(c.Chat().ID, 10))
-		if err != nil {
+		chatSession, err := b.session.GetSession(ctx, c.Chat().ID)
+		if err != nil && !errors.Is(err, session.ErrNotFound) {
 			slog.Error("got error from session.GetSession", slog.String("rqID", rqID), slog.String("err", err.Error()))
 			return c.Send("что-то пошло не так...")
 		}
@@ -77,23 +78,12 @@ func (b *TGBot) setupRoutes() {
 		c.Set("session", chatSession)
 
 		switch chatSession.Action {
-		case model.ExpectingPortfolioName:
-			return b.ctrl.ProcessStocksPortfolioCreation(c)
-		case model.ExpectingTicker:
-			return b.ctrl.ProcessAddStock(c)
-		case model.ExpectingWeight:
-			return b.ctrl.ProcessChangeWeight(c)
-		case model.ExpectingBuyStockQuantity:
-			return b.ctrl.ProcessBuyStock(c)
-		case model.ExpectingSellStockQuantity:
-			return b.ctrl.ProcessSellStock(c)
-		case model.ExpectingChangePrice:
-			return b.ctrl.ProcessChangePrice(c)
-		case model.ExpectingPurchaseSum:
-			return b.ctrl.ProcessCalculatePurchase(c)
+		case model.ExpectingAuthor:
+			return b.ctrl.ProcessEnterAuthorSurname(c)
+		// case model.ExpectingEmail:
+		// 	return b.ctrl.ProcessStocksPortfolioCreation(c)
 		default:
-			slog.Error("unexpected chatSession action", slog.String("rqID", rqID), slog.Any("state", chatSession.Action))
-			return c.Send("сначала введите одну из команд")
+			return b.ctrl.ProcessEnteredTitle(c)
 		}
 	})
 
@@ -102,50 +92,18 @@ func (b *TGBot) setupRoutes() {
 		callbackBtnText := strings.TrimPrefix(c.Callback().Data, "\f")
 
 		switch {
-		case callbackBtnText == tgCallback.AddStock:
-			return b.ctrl.InitAddStock(c)
-		case callbackBtnText == tgCallback.ChangeWeight:
-			return b.ctrl.InitChangeWeight(c)
-		case callbackBtnText == tgCallback.BuyStock:
-			return b.ctrl.InitBuyStock(c)
-		case callbackBtnText == tgCallback.SellStock:
-			return b.ctrl.InitSellStock(c)
-		case callbackBtnText == tgCallback.ChangePrice:
-			return b.ctrl.InitChangePrice(c)
-		case callbackBtnText == tgCallback.SaveStockChanges:
-			return b.ctrl.SaveStockChanges(c)
-		case callbackBtnText == tgCallback.AddStockToPortfolio:
-			return b.ctrl.ProcessAddStockToPortfolio(c)
-		case callbackBtnText == tgCallback.DeleteStock:
-			return b.ctrl.ProcessDeleteStock(c)
-		case callbackBtnText == tgCallback.BackToPortolio:
-			return b.ctrl.ProcessBackToPortfolio(c)
-		case callbackBtnText == tgCallback.CalculatePurchase:
-			return b.ctrl.InitCalculatePurchase(c)
-		case callbackBtnText == tgCallback.BackToPortolioList:
-			return b.ctrl.ProcessBackToPortfolioList(c)
-		case callbackBtnText == tgCallback.RebalanceWeights:
-			return b.ctrl.RebalanceWeights(c)
-		case callbackBtnText == tgCallback.InitDeletePortfolio:
-			return b.ctrl.InitDeletePortfolio(c)
-		case callbackBtnText == tgCallback.ProcessDeletePortfolio:
-			return b.ctrl.ProcessDeletePortfolio(c)
-		case callbackBtnText == tgCallback.GenerateReport:
-			return b.ctrl.GenerateReport(c)
-		case callbackBtnText == tgCallback.ApplyCalculatedPurchaseToPortfolio:
-			return b.ctrl.ApplyCalculatedPurchaseToPortfolio(c)
-		case callbackBtnText == tgCallback.CreatePortfolio:
-			return b.ctrl.InitStocksPortfolioCreation(c)
+		case callbackBtnText == tgCallback.SearchByBookTitle:
+			return b.ctrl.SearchByBookTitle(c)
+		case callbackBtnText == tgCallback.EnterAuthorSurname:
+			return b.ctrl.InitEnterAuthorSurname(c)
+		case callbackBtnText == tgCallback.BackToBooksPage:
+			return b.ctrl.BackToBooksPage(c)
+		case strings.HasPrefix(callbackBtnText, tgCallback.ToBooksPage):
+			return b.ctrl.ProcessToBooksPage(c)
+		case strings.HasPrefix(callbackBtnText, tgCallback.ToBookDetails):
+			return b.ctrl.ProcessToBookDetails(c)
 		case callbackBtnText == tgCallback.PageNumber:
 			return nil
-		case strings.HasPrefix(callbackBtnText, tgCallback.EditStockPrefix):
-			return b.ctrl.GoToEditStock(c)
-		case strings.HasPrefix(callbackBtnText, tgCallback.ToPortfolioPage):
-			return b.ctrl.GoToPortfolioPage(c)
-		case strings.HasPrefix(callbackBtnText, tgCallback.ToPortfolioListPage):
-			return b.ctrl.GetPortfolios(c)
-		case strings.HasPrefix(callbackBtnText, tgCallback.EditPortfolioPrefix):
-			return b.ctrl.GoToEditPortfolio(c)
 		default:
 			return c.Send("callback не опознан")
 		}

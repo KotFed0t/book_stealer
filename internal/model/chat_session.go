@@ -1,10 +1,17 @@
 package model
 
+type action int
+
+const (
+	DefaultAction action = iota
+	ExpectingAuthor
+	ExpectingEmail
+)
+
 type Session struct {
-	ExpectingAuthor   bool
+	Action            action
 	BookTitle, Author string
 	LastMsgId         int
-	ExpectingEmail    bool
 	DownloadLinkEpub  string
 	Books             []BookPreview
 	MaxSitePage       int

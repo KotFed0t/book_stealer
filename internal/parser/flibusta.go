@@ -3,6 +3,10 @@ package parser
 import (
 	"book_stealer_tgbot/config"
 	"book_stealer_tgbot/internal/model"
+	"book_stealer_tgbot/utils"
+	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"net/url"
 	"regexp"
@@ -39,8 +43,77 @@ func (f *FlibustaParser) getCollector() (*colly.Collector, error) {
 	return c, nil
 }
 
-func (f *FlibustaParser) GetBooksPaginated(bookTitle string, author string, page int) (books []model.BookPreview, maxPage int, err error) {
-	op := "FlibustaParser.GetBooksPaginated"
+func (f *FlibustaParser) GetBooksPaginated(ctx context.Context, bookTitle string, author string, limit, offset int) (books []model.BookPreview, hasNextPage bool, err error) {
+	op := "FlibustaParser.FinGetBooksPaginateddBooks"
+	rqID := utils.GetRequestIDFromCtx(ctx)
+
+	if offset < 0 || limit <= 0 {
+		return nil, false, errors.New("incorrect offset or limit")
+	}
+
+	// учитывается что нумерация флибусты с 0 страницы
+	fromPage := offset / f.cfg.Flibusta.BooksPerPage
+	toPage := (offset + limit - 1) / f.cfg.Flibusta.BooksPerPage
+
+	fromBookIdx := offset       // включая
+	toBookIdx := offset + limit // исключая
+
+	books = make([]model.BookPreview, 0, limit)
+	for curPage := fromPage; curPage <= toPage; curPage++ {
+		parsedBooks, maxPage, err := f.getBooksForPage(bookTitle, author, curPage)
+		if err != nil {
+			return nil, false, fmt.Errorf("error while parsing books: %w", err)
+		}
+
+		if len(parsedBooks) == 0 {
+			hasNextPage = false
+			break
+		}
+
+		// высчитываем индексы книг на странице
+		from := curPage * f.cfg.Flibusta.BooksPerPage
+		to := from + len(parsedBooks)
+
+		if from < fromBookIdx {
+			from = fromBookIdx
+		}
+
+		if to > toBookIdx {
+			to = toBookIdx
+		}
+
+		// приводим индексы книг на странице к индексам слайса
+		from = from - (curPage * f.cfg.Flibusta.BooksPerPage)
+		to = to - (curPage * f.cfg.Flibusta.BooksPerPage)
+
+		if from < 0 || from > len(parsedBooks)-1 || from >= to || to > len(parsedBooks) || to <= 0 {
+			params := map[string]any{
+				"limit":          limit,
+				"offset":         offset,
+				"curPage":        curPage,
+				"lenParsedBooks": len(parsedBooks),
+				"from":           from,
+				"to":             to,
+			}
+			slog.Error("incorrect books index calculation", slog.String("rqID", rqID), slog.String("op", op), slog.Any("params", params))
+			return nil, false, errors.New("incorrect books index calculation")
+		}
+
+		books = append(books, parsedBooks[from:to]...)
+
+		if maxPage <= curPage && to == len(parsedBooks) {
+			hasNextPage = false
+			break
+		} else {
+			hasNextPage = true
+		}
+	}
+
+	return books, hasNextPage, nil
+}
+
+func (f *FlibustaParser) getBooksForPage(bookTitle string, author string, page int) (books []model.BookPreview, maxPage int, err error) {
+	op := "FlibustaParser.getBooksForPage"
 	c, err := f.getCollector()
 	if err != nil {
 		slog.Error(
@@ -129,7 +202,7 @@ func (f *FlibustaParser) ParseBookPage(ref string) (book model.Book, err error) 
 
 		book.DownloadRefs = make(map[string]string)
 		e.ForEach("a[href^='/b/']", func(i int, e *colly.HTMLElement) {
-			book.DownloadRefs[e.Attr("href")] = e.Text
+			book.DownloadRefs[e.Text] = e.Attr("href")
 		})
 
 		text := strings.TrimSpace(e.Text)

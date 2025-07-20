@@ -16,7 +16,7 @@ func NewPostgresRepo(db *sqlx.DB) *Postgres {
 }
 
 func (r *Postgres) GetEmailByChatId(chatId int64) (email string, err error) {
-	op := "BotRepo.GetEmailByChatId"
+	op := "Postgres.GetEmailByChatId"
 
 	query := `SELECT email FROM emails WHERE chat_id = $1`
 	err = r.db.QueryRowx(query, chatId).Scan(&email)
@@ -49,7 +49,7 @@ func (r *Postgres) GetEmailByChatId(chatId int64) (email string, err error) {
 }
 
 func (r *Postgres) UpsertEmail(chatId int64, email string) error {
-	op := "BotRepo.SetEmail"
+	op := "Postgres.UpsertEmail"
 
 	_, err := r.db.Exec(`INSERT INTO emails (chat_id, email) VALUES ($1, $2) ON CONFLICT(chat_id) DO UPDATE SET email = EXCLUDED.email;`, chatId, email)
 	if err != nil {
@@ -73,7 +73,7 @@ func (r *Postgres) UpsertEmail(chatId int64, email string) error {
 }
 
 func (r *Postgres) DeleteEmailByChatId(chatId int64) error {
-	op := "BotRepo.DeleteEmail"
+	op := "Postgres.DeleteEmail"
 	_, err := r.db.Exec("DELETE FROM emails WHERE chat_id = $1", chatId)
 	if err != nil {
 		slog.Error(

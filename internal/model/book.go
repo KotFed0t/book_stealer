@@ -6,3 +6,16 @@ type Book struct {
 	Authors      []string
 	DownloadRefs map[string]string
 }
+
+type BookPreview struct {
+	Title string
+	Link  string
+}
+
+type BooksPage struct {
+	Books       []BookPreview
+	HasNextPage bool
+	Page        int
+	Title       string
+	Author      string
+}

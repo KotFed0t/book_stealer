@@ -2,28 +2,14 @@ package tgCallback
 
 // Callback button prefixes
 const (
-	AddStock                           string = "add_stock" // инициировать добавление новой акции
-	BackToPortolio                     string = "back_to_portfolio"
-	BackToPortolioList                 string = "back_to_portfolio_list"
-	ChangeWeight                       string = "change_weight"
-	BuyStock                           string = "buy_stock"
-	SellStock                          string = "sell_stock"
-	DeleteStock                        string = "delete_stock"
-	ChangePrice                        string = "change_price"
-	SaveStockChanges                   string = "save_stock_changes"
-	AddStockToPortfolio                string = "add_stock_to_portfolio" // добавить конкретный тикер в портфель
-	PageNumber                         string = "page_number"
-	CalculatePurchase                  string = "calculate_purchase"
-	RebalanceWeights                   string = "rebalance_weights"
-	InitDeletePortfolio                string = "init_delete_portfolio"
-	ProcessDeletePortfolio             string = "process_delete_portfolio"
-	GenerateReport                     string = "generate_report"
-	ApplyCalculatedPurchaseToPortfolio string = "apply_calculated_purchase_to_portolio"
-	CreatePortfolio                    string = "create_portolio"
+	EnterAuthorSurname string = "enter_author_surname"
+	SearchByBookTitle  string = "search_by_book_title"
+	PageNumber         string = "page_number"
+	BackToBooksPage    string = "back_to_books_page"
 
 	// prefixes
-	EditStockPrefix     string = "edit_stock:"
-	ToPortfolioPage     string = "to_portfolio_page:"
-	EditPortfolioPrefix string = "edit_portfolio:"
-	ToPortfolioListPage string = "to_portfolio_list_page:"
+	ToBookDetails string = "to_book_details:"
+	ToBooksPage   string = "to_books_page:"
+	DownloadBook  string = "download_book:"
+	SendToKindle  string = "send_to_kindle:"
 )
