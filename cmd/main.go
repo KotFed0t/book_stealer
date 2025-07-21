@@ -6,9 +6,12 @@ import (
 	"book_stealer_tgbot/data/db/postgres"
 	redisClient "book_stealer_tgbot/data/redis"
 	"book_stealer_tgbot/data/session"
+	"book_stealer_tgbot/internal/downloader"
 	"book_stealer_tgbot/internal/externalApi/cloudStorageApi/googleDriveApi"
+	"book_stealer_tgbot/internal/mailer"
 	"book_stealer_tgbot/internal/parser"
 	"book_stealer_tgbot/internal/repository"
+	"book_stealer_tgbot/internal/scheduler"
 	"book_stealer_tgbot/internal/service/bookStealerService"
 	"book_stealer_tgbot/internal/tgbot"
 	"book_stealer_tgbot/internal/transport/telegram"
@@ -45,7 +48,24 @@ func main() {
 
 	googleCloudStorage := googleDriveApi.New(ctx, cfg)
 
-	bookStealerService := bookStealerService.New(cfg, postgresRepo, redisCache, booksParser, googleCloudStorage)
+	fileDownloader := downloader.NewFileDownloader()
+
+	Mailer := mailer.NewMailer(cfg)
+
+	bookStealerService := bookStealerService.New(
+		cfg,
+		postgresRepo,
+		redisCache,
+		booksParser,
+		googleCloudStorage,
+		fileDownloader,
+		Mailer,
+	)
+
+	sched := scheduler.New()
+	sched.NewIntervalJob("delete old files from goolgle drive", googleCloudStorage.DeleteOldFiles, cfg.Jobs.DeleteOldFilesInterval, true)
+	sched.Start()
+	defer sched.Stop()
 
 	tgController := telegram.NewController(cfg, bookStealerService, redisSession)
 

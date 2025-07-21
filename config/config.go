@@ -22,6 +22,7 @@ type Config struct {
 	Flibusta          Flibusta
 	GoogleDrive       GoogleDrive
 	Cache             Cache
+	Jobs              Jobs
 }
 
 type Postgres struct {
@@ -39,8 +40,9 @@ type Postgres struct {
 }
 
 type Telegram struct {
-	Token      string        `env:"TELEGRAM_TOKEN"`
-	UpdTimeout time.Duration `env:"TELEGRAM_UPD_TIMEOUT"`
+	Token            string        `env:"TELEGRAM_TOKEN"`
+	UpdTimeout       time.Duration `env:"TELEGRAM_UPD_TIMEOUT"`
+	FileLimitInBytes int           `env:"TELEGRAM_FILE_LIMIT_IN_BYTES"`
 }
 
 type Flibusta struct {
@@ -72,6 +74,10 @@ type GoogleDrive struct {
 type Cache struct {
 	RequestTTL   time.Duration `env:"CACHE_REQUEST_TTL"`
 	BooksPageTTL time.Duration `env:"CACHE_BOOKS_PAGE_TTL"`
+}
+
+type Jobs struct {
+	DeleteOldFilesInterval time.Duration `env:"DELETE_OLD_FILES_JOB_INTERVAL"`
 }
 
 func MustLoad() *Config {

@@ -99,3 +99,29 @@ func BookDetails(book model.Book) (text string, markup *tele.ReplyMarkup) {
 
 	return text, markup
 }
+
+func EmailNotLinkedMenu() (text string, markup *tele.ReplyMarkup) {
+	markup = &tele.ReplyMarkup{}
+	text = "У вас нет привязанного email"
+
+	btn := markup.Data("привязать", tgCallback.LinkEmail)
+
+	markup.Inline(markup.Row(btn))
+
+	return text, markup
+}
+
+func EmailMenu(email string) (text string, markup *tele.ReplyMarkup) {
+	markup = &tele.ReplyMarkup{}
+	text = fmt.Sprintf("ваш email: %s", email)
+
+	deleteBtn := markup.Data("удалить", tgCallback.DeleteEmail)
+	changeBtn := markup.Data("изменить", tgCallback.LinkEmail)
+
+	markup.Inline(
+		markup.Row(deleteBtn),
+		markup.Row(changeBtn),
+	)
+
+	return text, markup
+}

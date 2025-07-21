@@ -35,7 +35,7 @@ func (a *GoogleDriveApi) UploadFile(ctx context.Context, reader io.Reader, filen
 	rqID := utils.GetRequestIDFromCtx(ctx)
 	op := "GoogleDriveApi.UploadFile"
 
-	slog.Debug("UploadFile start", slog.String("rqID", rqID), slog.String("op", op), slog.String("filename", filename))
+	slog.Info("UploadFile start", slog.String("rqID", rqID), slog.String("op", op), slog.String("filename", filename))
 
 	mimeType := mime.TypeByExtension(filepath.Ext(filename))
 	slog.Debug("mime Type", slog.String("mime", mimeType))
@@ -66,7 +66,7 @@ func (a *GoogleDriveApi) UploadFile(ctx context.Context, reader io.Reader, filen
 		return "", err
 	}
 
-	slog.Debug("UploadFile completed", slog.String("rqID", rqID), slog.String("op", op), slog.Any("uploadedFile", uploadedFile))
+	slog.Info("UploadFile completed", slog.String("rqID", rqID), slog.String("op", op), slog.Any("uploadedFile", uploadedFile))
 
 	return fmt.Sprintf(downloadLinkTemplate, uploadedFile.Id), nil
 }

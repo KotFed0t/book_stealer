@@ -6,6 +6,8 @@ const (
 	SearchByBookTitle  string = "search_by_book_title"
 	PageNumber         string = "page_number"
 	BackToBooksPage    string = "back_to_books_page"
+	LinkEmail          string = "link_email"
+	DeleteEmail        string = "delete_email"
 
 	// prefixes
 	ToBookDetails string = "to_book_details:"

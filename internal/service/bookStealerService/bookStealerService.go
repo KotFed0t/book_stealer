@@ -3,6 +3,7 @@ package bookStealerService
 import (
 	"book_stealer_tgbot/config"
 	"book_stealer_tgbot/internal/model"
+	"book_stealer_tgbot/internal/repository"
 	"book_stealer_tgbot/internal/service"
 	"book_stealer_tgbot/utils"
 	"context"
@@ -19,14 +20,25 @@ type Cache interface {
 
 type BooksParser interface {
 	GetBooksPaginated(ctx context.Context, bookTitle string, author string, limit, offset int) (books []model.BookPreview, hasNextPage bool, err error)
-	ParseBookPage(ref string) (book model.Book, err error)
+	ParseBookPage(ctx context.Context, ref string) (book model.Book, err error)
 }
 
 type Repository interface {
+	GetEmailByChatId(ctx context.Context, chatId int64) (email string, err error)
+	UpsertEmail(ctx context.Context, chatId int64, email string) error
+	DeleteEmailByChatId(ctx context.Context, chatId int64) error
 }
 
 type CloudStorageApi interface {
 	UploadFile(ctx context.Context, reader io.Reader, filename string) (downloadLink string, err error)
+}
+
+type FileDownloader interface {
+	Download(ctx context.Context, url string) (fileBytes []byte, filename string, err error)
+}
+
+type Mailer interface {
+	SendFile(ctx context.Context, to string, fileName string, fileContent []byte) error
 }
 
 type BookStealerService struct {
@@ -35,15 +47,27 @@ type BookStealerService struct {
 	cache           Cache
 	booksParser     BooksParser
 	cloudStorageApi CloudStorageApi
+	fileDownloader  FileDownloader
+	mailer          Mailer
 }
 
-func New(cfg *config.Config, repo Repository, cache Cache, booksParser BooksParser, cloudStorageApi CloudStorageApi) *BookStealerService {
+func New(
+	cfg *config.Config,
+	repo Repository,
+	cache Cache,
+	booksParser BooksParser,
+	cloudStorageApi CloudStorageApi,
+	fileDownloader FileDownloader,
+	mailer Mailer,
+) *BookStealerService {
 	return &BookStealerService{
 		cfg:             cfg,
 		repo:            repo,
 		cache:           cache,
 		booksParser:     booksParser,
 		cloudStorageApi: cloudStorageApi,
+		fileDownloader:  fileDownloader,
+		mailer:          mailer,
 	}
 }
 
@@ -87,5 +111,54 @@ func (s *BookStealerService) GetBooksForPage(ctx context.Context, request model.
 }
 
 func (s *BookStealerService) GetBookDetails(ctx context.Context, bookLink string) (book model.Book, err error) {
-	return s.booksParser.ParseBookPage(bookLink)
+	return s.booksParser.ParseBookPage(ctx, bookLink)
+}
+
+func (s *BookStealerService) DownloadBook(ctx context.Context, url string) (fileBytes []byte, filename string, err error) {
+	return s.fileDownloader.Download(ctx, url)
+}
+
+func (s *BookStealerService) UploadFileToCloud(ctx context.Context, reader io.Reader, filename string) (downloadLink string, err error) {
+	return s.cloudStorageApi.UploadFile(ctx, reader, filename)
+}
+
+func (s *BookStealerService) GetEmail(ctx context.Context, chatID int64) (email string, err error) {
+	email, err = s.repo.GetEmailByChatId(ctx, chatID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNoRows) {
+			return "", service.ErrNotFound
+		}
+		return "", err
+	}
+	return email, nil
+}
+
+func (s *BookStealerService) SetEmail(ctx context.Context, chatID int64, email string) error {
+	return s.repo.UpsertEmail(ctx, chatID, email)
+}
+
+func (s *BookStealerService) DeleteEmail(ctx context.Context, chatID int64) error {
+	return s.repo.DeleteEmailByChatId(ctx, chatID)
+}
+
+func (s *BookStealerService) SendBookToKindle(ctx context.Context, bookUrl string, chatID int64) error {
+	email, err := s.repo.GetEmailByChatId(ctx, chatID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNoRows) {
+			return service.ErrNotFound
+		}
+		return fmt.Errorf("get email error: %w", err)
+	}
+
+	fileBytes, fileName, err := s.fileDownloader.Download(ctx, bookUrl)
+	if err != nil {
+		return fmt.Errorf("dowloand book error: %w", err)
+	}
+
+	err = s.mailer.SendFile(ctx, email, fileName, fileBytes)
+	if err != nil {
+		return fmt.Errorf("send file error: %w", err)
+	}
+
+	return nil
 }

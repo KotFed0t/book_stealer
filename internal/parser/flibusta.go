@@ -60,7 +60,7 @@ func (f *FlibustaParser) GetBooksPaginated(ctx context.Context, bookTitle string
 
 	books = make([]model.BookPreview, 0, limit)
 	for curPage := fromPage; curPage <= toPage; curPage++ {
-		parsedBooks, maxPage, err := f.getBooksForPage(bookTitle, author, curPage)
+		parsedBooks, maxPage, err := f.getBooksForPage(ctx, bookTitle, author, curPage)
 		if err != nil {
 			return nil, false, fmt.Errorf("error while parsing books: %w", err)
 		}
@@ -112,13 +112,15 @@ func (f *FlibustaParser) GetBooksPaginated(ctx context.Context, bookTitle string
 	return books, hasNextPage, nil
 }
 
-func (f *FlibustaParser) getBooksForPage(bookTitle string, author string, page int) (books []model.BookPreview, maxPage int, err error) {
+func (f *FlibustaParser) getBooksForPage(ctx context.Context, bookTitle string, author string, page int) (books []model.BookPreview, maxPage int, err error) {
 	op := "FlibustaParser.getBooksForPage"
+	rqID := utils.GetRequestIDFromCtx(ctx)
 	c, err := f.getCollector()
 	if err != nil {
 		slog.Error(
 			"Failed to get collector with set proxy",
 			slog.String("op", op),
+			slog.String("rqID", rqID),
 			slog.String("err", err.Error()),
 		)
 		return nil, 0, err
@@ -157,7 +159,7 @@ func (f *FlibustaParser) getBooksForPage(bookTitle string, author string, page i
 	})
 
 	c.OnRequest(func(r *colly.Request) {
-		slog.Info("Visiting", slog.String("url", r.URL.String()))
+		slog.Info("Visiting", slog.String("op", op), slog.String("rqID", rqID), slog.String("url", r.URL.String()))
 	})
 
 	searchURL := f.cfg.Flibusta.BaseUrl + f.cfg.Flibusta.SearchPage
@@ -175,6 +177,7 @@ func (f *FlibustaParser) getBooksForPage(bookTitle string, author string, page i
 		slog.Error(
 			"Error while visiting url",
 			slog.String("op", op),
+			slog.String("rqID", rqID),
 			slog.String("url", fullURL),
 			slog.String("err", err.Error()),
 		)
@@ -184,13 +187,17 @@ func (f *FlibustaParser) getBooksForPage(bookTitle string, author string, page i
 	return books, maxPage, nil
 }
 
-func (f *FlibustaParser) ParseBookPage(ref string) (book model.Book, err error) {
+func (f *FlibustaParser) ParseBookPage(ctx context.Context, ref string) (book model.Book, err error) {
 	op := "FlibustaParser.ParseBookPage"
+	rqID := utils.GetRequestIDFromCtx(ctx)
+
 	c, err := f.getCollector()
 	if err != nil {
 		slog.Error(
 			"Failed to get collector with set proxy",
 			slog.String("op", op),
+			slog.String("rqID", rqID),
+			slog.String("rqID", rqID),
 			slog.String("err", err.Error()),
 		)
 		return book, err
@@ -202,7 +209,7 @@ func (f *FlibustaParser) ParseBookPage(ref string) (book model.Book, err error) 
 
 		book.DownloadRefs = make(map[string]string)
 		e.ForEach("a[href^='/b/']", func(i int, e *colly.HTMLElement) {
-			book.DownloadRefs[e.Text] = e.Attr("href")
+			book.DownloadRefs[e.Text] = f.cfg.Flibusta.BaseUrl + e.Attr("href")
 		})
 
 		text := strings.TrimSpace(e.Text)
@@ -231,7 +238,7 @@ func (f *FlibustaParser) ParseBookPage(ref string) (book model.Book, err error) 
 	})
 
 	c.OnRequest(func(r *colly.Request) {
-		slog.Info("Visiting", slog.String("url", r.URL.String()))
+		slog.Info("Visiting", slog.String("op", op), slog.String("rqID", rqID), slog.String("url", r.URL.String()))
 	})
 
 	searchURL := f.cfg.Flibusta.BaseUrl + ref
@@ -240,6 +247,7 @@ func (f *FlibustaParser) ParseBookPage(ref string) (book model.Book, err error) 
 		slog.Error(
 			"Error while visiting url",
 			slog.String("op", op),
+			slog.String("rqID", rqID),
 			slog.String("url", searchURL),
 			slog.String("err", err.Error()),
 		)

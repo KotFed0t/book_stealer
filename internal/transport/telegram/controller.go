@@ -1,10 +1,13 @@
 package telegram
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -23,6 +26,12 @@ import (
 type BookStealerService interface {
 	GetBooksForPage(ctx context.Context, request model.BookSearchRequest) (booksPage model.BooksPage, err error)
 	GetBookDetails(ctx context.Context, bookLink string) (book model.Book, err error)
+	DownloadBook(ctx context.Context, url string) (fileBytes []byte, filename string, err error)
+	UploadFileToCloud(ctx context.Context, reader io.Reader, filename string) (downloadLink string, err error)
+	GetEmail(ctx context.Context, chatID int64) (email string, err error)
+	SetEmail(ctx context.Context, chatID int64, email string) error
+	DeleteEmail(ctx context.Context, chatID int64) error
+	SendBookToKindle(ctx context.Context, bookUrl string, chatID int64) error
 }
 
 type Session interface {
@@ -84,6 +93,91 @@ func (ctrl *Controller) Help(c tele.Context) error {
 	return c.Reply("Чтобы найти книгу - просто введи ее название.\n\nЕсли у тебя есть электронная книга от Amazon - то ты можешь привязать свой send-to-kindle email вызвав команду /email и отправлять книги сразу на свою электронную книгу (возможность отправки книги на email появится только если у найденной книги будет предоставлен формат epub).\n\nВажно! Чтобы книги успешно приходили на kindle добавь email booksender@kotfedot-projects.ru в Approved Personal Document E-mail List. Для этого зайди в аккаунт Amazon (content & devices -> preferences -> personal document settings -> Approved Personal Document E-mail List)")
 }
 
+func (ctrl *Controller) Email(c tele.Context) error {
+	op := "Controller.Email"
+	ctx := utils.CreateCtxWithRqID(c)
+	rqID := utils.GetRequestIDFromCtx(ctx)
+
+	email, err := ctrl.bookStealerService.GetEmail(ctx, c.Chat().ID)
+	if err != nil {
+		if errors.Is(err, service.ErrNotFound) {
+			return c.Send(telebotConverter.EmailNotLinkedMenu())
+		}
+		slog.Error("got error from bookStealerService.GetEmail", slog.String("rqID", rqID), slog.String("op", op), slog.String("err", err.Error()))
+		return ctrl.sendAutoDeleteMsg(c, internalErrMsg)
+	}
+
+	return c.Send(telebotConverter.EmailMenu(email))
+}
+
+func (ctrl *Controller) InitLinkEmail(c tele.Context) error {
+	op := "Controller.InitLinkEmail"
+	ctx := utils.CreateCtxWithRqID(c)
+	rqID := utils.GetRequestIDFromCtx(ctx)
+
+	chatSession, err := ctrl.getSessionFromTeleCtxOrStorage(ctx, c)
+	if err != nil && !errors.Is(err, session.ErrNotFound) {
+		slog.Error("failed on getSessionFromTeleCtxOrStorage", slog.String("rqID", rqID), slog.String("op", op), slog.String("err", err.Error()))
+		return ctrl.sendAutoDeleteMsg(c, internalErrMsg)
+	}
+
+	chatSession.Action = model.ExpectingEmail
+	err = ctrl.session.SetSession(ctx, c.Chat().ID, chatSession)
+	if err != nil {
+		slog.Error("got error from session.SetSession", slog.String("rqID", rqID), slog.String("op", op), slog.String("err", err.Error()))
+		return ctrl.sendAutoDeleteMsg(c, internalErrMsg)
+	}
+
+	return c.Edit(linkEmailText)
+}
+
+func (ctrl *Controller) ProcessLinkEmail(c tele.Context) error {
+	op := "Controller.ProcessLinkEmail"
+	ctx := utils.CreateCtxWithRqID(c)
+	rqID := utils.GetRequestIDFromCtx(ctx)
+
+	chatSession, err := ctrl.getSessionFromTeleCtxOrStorage(ctx, c)
+	if err != nil && !errors.Is(err, session.ErrNotFound) {
+		slog.Error("failed on getSessionFromTeleCtxOrStorage", slog.String("rqID", rqID), slog.String("op", op), slog.String("err", err.Error()))
+		return ctrl.sendAutoDeleteMsg(c, internalErrMsg)
+	}
+
+	email := c.Message().Text
+	reEmail := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+	if !reEmail.MatchString(email) {
+		return c.Send("Введен некорректный email. Проверьте правильность и введите команду /email чтобы повторить попытку.")
+	}
+
+	err = ctrl.bookStealerService.SetEmail(ctx, c.Chat().ID, email)
+	if err != nil {
+		slog.Error("failed on bookStealerService.SetEmail", slog.String("rqID", rqID), slog.String("op", op), slog.String("err", err.Error()))
+		return ctrl.sendAutoDeleteMsg(c, internalErrMsg)
+	}
+
+	chatSession.Action = model.DefaultAction
+	err = ctrl.session.SetSession(ctx, c.Chat().ID, chatSession)
+	if err != nil {
+		slog.Error("got error from session.SetSession", slog.String("rqID", rqID), slog.String("op", op), slog.String("err", err.Error()))
+		return ctrl.sendAutoDeleteMsg(c, internalErrMsg)
+	}
+
+	return c.Send(EmailLinkedSuccessfully)
+}
+
+func (ctrl *Controller) DeleteEmail(c tele.Context) error {
+	op := "Controller.DeleteEmail"
+	ctx := utils.CreateCtxWithRqID(c)
+	rqID := utils.GetRequestIDFromCtx(ctx)
+
+	err := ctrl.bookStealerService.DeleteEmail(ctx, c.Chat().ID)
+	if err != nil {
+		slog.Error("failed on bookStealerService.DeleteEmail", slog.String("rqID", rqID), slog.String("op", op), slog.String("err", err.Error()))
+		return ctrl.sendAutoDeleteMsg(c, internalErrMsg)
+	}
+
+	return c.Edit(EmailDeletedSuccessfully)
+}
+
 func (ctrl *Controller) ProcessEnteredTitle(c tele.Context) error {
 	op := "Controller.ProcessEnteredTitle"
 	ctx := utils.CreateCtxWithRqID(c)
@@ -107,6 +201,7 @@ func (ctrl *Controller) SearchByBookTitle(c tele.Context) error {
 
 	chatSession, err := ctrl.getSessionFromTeleCtxOrStorage(ctx, c)
 	if err != nil {
+		slog.Error("failed on getSessionFromTeleCtxOrStorage", slog.String("rqID", rqID), slog.String("op", op), slog.String("err", err.Error()))
 		return ctrl.sendAutoDeleteMsg(c, internalErrMsg)
 	}
 
@@ -277,6 +372,7 @@ func (ctrl *Controller) ProcessToBookDetails(c tele.Context) error {
 
 	return c.Edit(telebotConverter.BookDetails(book))
 }
+
 func (ctrl *Controller) BackToBooksPage(c tele.Context) error {
 	op := "Controller.BackToBooksPage"
 	ctx := utils.CreateCtxWithRqID(c)
@@ -309,4 +405,58 @@ func (ctrl *Controller) BackToBooksPage(c tele.Context) error {
 	}
 
 	return c.Edit(telebotConverter.BooksPage(booksPage, ctrl.cfg.BooksPerPage))
+}
+
+func (ctrl *Controller) DownloadBook(c tele.Context) error {
+	op := "Controller.DownloadBook"
+	ctx := utils.CreateCtxWithRqID(c)
+	rqID := utils.GetRequestIDFromCtx(ctx)
+
+	url := strings.TrimPrefix(c.Callback().Data, fmt.Sprintf("\f%s", tgCallback.DownloadBook))
+
+	go ctrl.sendAutoDeleteMsg(c, startBookDownloading)
+
+	fileBytes, filename, err := ctrl.bookStealerService.DownloadBook(ctx, url)
+	if err != nil {
+		slog.Error("got error from bookStealerService.DownloadBook", slog.String("rqID", rqID), slog.String("op", op), slog.String("err", err.Error()))
+		return ctrl.sendAutoDeleteMsg(c, internalErrMsg)
+	}
+
+	if len(fileBytes) < ctrl.cfg.Telegram.FileLimitInBytes {
+		doc := &tele.Document{
+			File:     tele.File{FileReader: bytes.NewReader(fileBytes)},
+			FileName: filename,
+		}
+		return c.Send(doc)
+	}
+
+	// иначе загружаем в облако и отправляем ссылку на скачивание
+	downloadLink, err := ctrl.bookStealerService.UploadFileToCloud(ctx, bytes.NewReader(fileBytes), filename)
+	if err != nil {
+		slog.Error("failed on bookStealerService.UploadFileToCloud", slog.String("rqID", rqID), slog.String("op", op), slog.String("err", err.Error()))
+		return ctrl.sendAutoDeleteMsg(c, internalErrMsg)
+	}
+
+	return c.Send(downloadLink)
+}
+
+func (ctrl *Controller) SendBookToKindle(c tele.Context) error {
+	op := "Controller.SendBookToKindle"
+	ctx := utils.CreateCtxWithRqID(c)
+	rqID := utils.GetRequestIDFromCtx(ctx)
+
+	url := strings.TrimPrefix(c.Callback().Data, fmt.Sprintf("\f%s", tgCallback.SendToKindle))
+
+	go ctrl.sendAutoDeleteMsg(c, StartSendingToKindle)
+
+	err := ctrl.bookStealerService.SendBookToKindle(ctx, url, c.Chat().ID)
+	if err != nil {
+		if errors.Is(err, service.ErrNotFound) {
+			return c.Send(EmailNotLinked)
+		}
+		slog.Error("got error from bookStealerService.SendBookToKindle", slog.String("rqID", rqID), slog.String("op", op), slog.String("err", err.Error()))
+		return c.Send(c, internalErrMsg)
+	}
+
+	return c.Send(BookSendedToKindle)
 }

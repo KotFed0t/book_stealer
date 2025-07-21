@@ -63,6 +63,7 @@ func (b *TGBot) setupRoutes() {
 	// commands
 	b.bot.Handle("/start", b.ctrl.Start)
 	b.bot.Handle("/help", b.ctrl.Help)
+	b.bot.Handle("/email", b.ctrl.Email)
 
 	// text
 	b.bot.Handle(tele.OnText, func(c tele.Context) error {
@@ -80,8 +81,8 @@ func (b *TGBot) setupRoutes() {
 		switch chatSession.Action {
 		case model.ExpectingAuthor:
 			return b.ctrl.ProcessEnterAuthorSurname(c)
-		// case model.ExpectingEmail:
-		// 	return b.ctrl.ProcessStocksPortfolioCreation(c)
+		case model.ExpectingEmail:
+			return b.ctrl.ProcessLinkEmail(c)
 		default:
 			return b.ctrl.ProcessEnteredTitle(c)
 		}
@@ -98,10 +99,18 @@ func (b *TGBot) setupRoutes() {
 			return b.ctrl.InitEnterAuthorSurname(c)
 		case callbackBtnText == tgCallback.BackToBooksPage:
 			return b.ctrl.BackToBooksPage(c)
+		case callbackBtnText == tgCallback.LinkEmail:
+			return b.ctrl.InitLinkEmail(c)
+		case callbackBtnText == tgCallback.DeleteEmail:
+			return b.ctrl.DeleteEmail(c)
 		case strings.HasPrefix(callbackBtnText, tgCallback.ToBooksPage):
 			return b.ctrl.ProcessToBooksPage(c)
+		case strings.HasPrefix(callbackBtnText, tgCallback.DownloadBook):
+			return b.ctrl.DownloadBook(c)
 		case strings.HasPrefix(callbackBtnText, tgCallback.ToBookDetails):
 			return b.ctrl.ProcessToBookDetails(c)
+		case strings.HasPrefix(callbackBtnText, tgCallback.SendToKindle):
+			return b.ctrl.SendBookToKindle(c)
 		case callbackBtnText == tgCallback.PageNumber:
 			return nil
 		default:
