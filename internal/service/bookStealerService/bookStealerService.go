@@ -13,30 +13,36 @@ import (
 	"log/slog"
 )
 
+//go:generate mockgen -destination=mocks/cache.go -package=mocks . Cache
 type Cache interface {
 	GetBooksForPage(ctx context.Context, title, author string, page int) (booksPage model.BooksPage, err error)
 	SetBooksForPage(ctx context.Context, booksPage model.BooksPage) error
 }
 
+//go:generate mockgen -destination=mocks/booksParser.go -package=mocks . BooksParser
 type BooksParser interface {
 	GetBooksPaginated(ctx context.Context, bookTitle string, author string, limit, offset int) (books []model.BookPreview, hasNextPage bool, err error)
 	ParseBookPage(ctx context.Context, ref string) (book model.Book, err error)
 }
 
+//go:generate mockgen -destination=mocks/repository.go -package=mocks . Repository
 type Repository interface {
 	GetEmailByChatId(ctx context.Context, chatId int64) (email string, err error)
 	UpsertEmail(ctx context.Context, chatId int64, email string) error
 	DeleteEmailByChatId(ctx context.Context, chatId int64) error
 }
 
+//go:generate mockgen -destination=mocks/cloudStorageApi.go -package=mocks . CloudStorageApi
 type CloudStorageApi interface {
 	UploadFile(ctx context.Context, reader io.Reader, filename string) (downloadLink string, err error)
 }
 
+//go:generate mockgen -destination=mocks/fileDownloader.go -package=mocks . FileDownloader
 type FileDownloader interface {
 	Download(ctx context.Context, url string) (fileBytes []byte, filename string, err error)
 }
 
+//go:generate mockgen -destination=mocks/mailer.go -package=mocks . Mailer
 type Mailer interface {
 	SendFile(ctx context.Context, to string, fileName string, fileContent []byte) error
 }
