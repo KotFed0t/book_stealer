@@ -22,7 +22,7 @@ services:
 
   redis:
     image: redis:8-alpine
-    container_name: redis_invest_helper_bot
+    container_name: redis_book_stealer
     ports:
       - "6379:6379"
 
