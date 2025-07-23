@@ -11,10 +11,4 @@ const (
 type Session struct {
 	Action            action
 	BookTitle, Author string
-	LastMsgId         int
-	DownloadLinkEpub  string
-	Books             []BookPreview
-	MaxSitePage       int
-	CurSitePage       int
-	CurTgPage         int
 }

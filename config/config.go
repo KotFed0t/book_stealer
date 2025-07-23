@@ -11,7 +11,6 @@ import (
 type Config struct {
 	Env               string        `env:"ENV"`
 	LogLevel          string        `env:"LOG_LEVEL"`
-	MaxGoroutineCnt   int           `env:"MAX_GOROUTINE_CNT"`
 	ProxyUrl          string        `env:"PROXY_URL"`
 	BooksPerPage      int           `env:"BOOKS_PER_PAGE"`
 	SessionExpiration time.Duration `env:"SESSION_EXPIRATION"`
@@ -72,7 +71,6 @@ type GoogleDrive struct {
 }
 
 type Cache struct {
-	RequestTTL   time.Duration `env:"CACHE_REQUEST_TTL"`
 	BooksPageTTL time.Duration `env:"CACHE_BOOKS_PAGE_TTL"`
 }
 

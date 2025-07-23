@@ -127,7 +127,7 @@ func (r *RedisSession) SetBookSearchRequest(ctx context.Context, chatID int64, m
 		return errors.New("marshalling error")
 	}
 
-	_, err = r.redis.Set(ctx, key, jsonData, r.cfg.Cache.RequestTTL).Result()
+	_, err = r.redis.Set(ctx, key, jsonData, r.cfg.SessionExpiration).Result()
 	if err != nil {
 		slog.Error("failed on redis.Set", slog.String("rqID", rqID), slog.String("op", op), slog.String("err", err.Error()), slog.Any("request", request))
 		return err
