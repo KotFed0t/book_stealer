@@ -1,11 +1,16 @@
 services:
-  redis:
-    image: redis:alpine
-    ports:
-      - "6379:6379"
+  app:
+    container_name: app_book_stealer
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - redis
+      - postgres
 
   postgres:
     image: postgres:17-alpine
+    container_name: postgres_book_stealer
     environment:
       - POSTGRES_USER=${PG_USER}
       - POSTGRES_PASSWORD=${PG_PASSWORD}
@@ -14,6 +19,12 @@ services:
       - "5432:5432"
     volumes:
       - postgres-db:/var/lib/postgresql/data
+
+  redis:
+    image: redis:8-alpine
+    container_name: redis_invest_helper_bot
+    ports:
+      - "6379:6379"
 
 volumes:
   postgres-db:
