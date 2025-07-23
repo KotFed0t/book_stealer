@@ -2,11 +2,15 @@ package postgres
 
 import (
 	"book_stealer_tgbot/config"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
-	_ "github.com/jackc/pgx/stdlib" // pgx driver
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -15,13 +19,13 @@ const (
 	connTimeout        = time.Second
 )
 
-func MustInitPostgres(c *config.Config) *sqlx.DB {
+func NewPostgresClient(cfg *config.Config) *sqlx.DB {
 	dataSourceName := fmt.Sprintf("host=%s port=%d user=%s dbname=%s sslmode=disable password=%s",
-		c.Postgres.Host,
-		c.Postgres.Port,
-		c.Postgres.User,
-		c.Postgres.DbName,
-		c.Postgres.Password,
+		cfg.Postgres.Host,
+		cfg.Postgres.Port,
+		cfg.Postgres.User,
+		cfg.Postgres.DbName,
+		cfg.Postgres.Password,
 	)
 
 	connAttempts := defaultConnAttemts
@@ -34,7 +38,7 @@ func MustInitPostgres(c *config.Config) *sqlx.DB {
 			break
 		}
 
-		slog.Info("Postgres is trying to connect, attempts left: %d", connAttempts)
+		slog.Info("Postgres is trying to connect", slog.Int("attempts left", connAttempts))
 
 		time.Sleep(connTimeout)
 
@@ -42,18 +46,46 @@ func MustInitPostgres(c *config.Config) *sqlx.DB {
 	}
 
 	if err != nil {
-		slog.Error(fmt.Sprintf("Postgres connAttempts = 0"))
+		slog.Error("Postgres connAttempts = 0")
 		panic(err)
 	}
 
-	db.SetMaxOpenConns(c.Postgres.MaxOpenConns)
-	db.SetConnMaxLifetime(time.Duration(c.Postgres.ConnMaxLifetime) * time.Second)
-	db.SetMaxIdleConns(c.Postgres.MaxIdleConns)
-	db.SetConnMaxIdleTime(time.Duration(c.Postgres.ConnMaxIdleTime) * time.Second)
+	db.SetMaxOpenConns(cfg.Postgres.MaxOpenConns)
+	db.SetConnMaxLifetime(time.Duration(cfg.Postgres.ConnMaxLifetime) * time.Second)
+	db.SetMaxIdleConns(cfg.Postgres.MaxIdleConns)
+	db.SetConnMaxIdleTime(time.Duration(cfg.Postgres.ConnMaxIdleTime) * time.Second)
 	if err = db.Ping(); err != nil {
-		slog.Error(fmt.Sprintf("Postgres dbPing error"))
+		slog.Error("Postgres dbPing error")
 		panic(err)
 	}
+	slog.Info("Postgres connected")
+
+	migratePostgres(db, cfg.Postgres.MigrationDir)
+	slog.Info("postgres migrated successfully")
 
 	return db
+}
+
+func migratePostgres(db *sqlx.DB, migrationDir string) {
+	driver, err := postgres.WithInstance(db.DB, &postgres.Config{})
+	if err != nil {
+		slog.Error("postgres migration failed on postgres.WithInstance", slog.String("err", err.Error()))
+		panic(err)
+	}
+
+	m, err := migrate.NewWithDatabaseInstance(
+		fmt.Sprintf("file://%s", migrationDir),
+		"postgres",
+		driver,
+	)
+	if err != nil {
+		slog.Error("postgres migration failed on migrate.NewWithDatabaseInstance", slog.String("err", err.Error()))
+		panic(err)
+	}
+
+	err = m.Up()
+	if err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		slog.Error("postgres migration failed on m.Up()", slog.String("err", err.Error()))
+		panic(err)
+	}
 }
