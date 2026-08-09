@@ -1,6 +1,6 @@
 services:
   app:
-    container_name: app_book_stealer
+    container_name: app_book_stealer_dev
     build:
       context: .
       dockerfile: Dockerfile
@@ -10,7 +10,7 @@ services:
 
   postgres:
     image: postgres:17-alpine
-    container_name: postgres_book_stealer
+    container_name: postgres_book_stealer_dev
     environment:
       - POSTGRES_USER=${PG_USER}
       - POSTGRES_PASSWORD=${PG_PASSWORD}
@@ -22,7 +22,7 @@ services:
 
   redis:
     image: redis:8-alpine
-    container_name: redis_book_stealer
+    container_name: redis_book_stealer_dev
     ports:
       - "6379:6379"
 

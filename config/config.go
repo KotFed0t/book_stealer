@@ -45,9 +45,10 @@ type Telegram struct {
 }
 
 type Flibusta struct {
-	BaseUrl      string `env:"FLIBUSTA_BASE_URL"`
-	SearchPage   string `env:"FLIBUSTA_SEARCH_PAGE"`
-	BooksPerPage int    `env:"FLIBUSTA_BOOKS_PER_PAGE"`
+	BaseUrl        string        `env:"FLIBUSTA_BASE_URL"`
+	SearchPage     string        `env:"FLIBUSTA_SEARCH_PAGE"`
+	BooksPerPage   int           `env:"FLIBUSTA_BOOKS_PER_PAGE"`
+	RequestTimeout time.Duration `env:"FLIBUSTA_REQUEST_TIMEOUT"`
 }
 
 type Redis struct {

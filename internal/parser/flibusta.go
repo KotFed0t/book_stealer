@@ -27,6 +27,7 @@ func NewFlibustaParser(cfg *config.Config) *FlibustaParser {
 func (f *FlibustaParser) getCollector() (*colly.Collector, error) {
 	op := "FlibustaParser.getCollectorWithProxy"
 	c := colly.NewCollector()
+	c.SetRequestTimeout(f.cfg.Flibusta.RequestTimeout)
 
 	if f.cfg.ProxyUrl != "" {
 		err := c.SetProxy(f.cfg.ProxyUrl)

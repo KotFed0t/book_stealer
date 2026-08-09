@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/h2non/gock"
 	"github.com/stretchr/testify/assert"
@@ -29,8 +30,9 @@ func TestFlibustaParserSuite(t *testing.T) {
 func (s *flibustaParserSuite) SetupSuite() {
 	s.cfg = &config.Config{
 		Flibusta: config.Flibusta{
-			BaseUrl:      "https://test.com",
-			BooksPerPage: 5,
+			BaseUrl:        "https://test.com",
+			BooksPerPage:   5,
+			RequestTimeout: 10 * time.Second,
 		},
 	}
 	s.mockCtrl = gomock.NewController(s.T())
@@ -341,11 +343,11 @@ func (s *flibustaParserSuite) Test_GetBooksPaginated_NotEnoughBooks() {
 	books := []model.BookPreview{
 		{
 			Title: "- Зимние сказки [2015] [худ. Н. Шароватова] 772K - Сергей Григорьевич Козлов - Наталья Шароватова (иллюстратор)",
-			Link: "/b/821815",
+			Link:  "/b/821815",
 		},
 		{
 			Title: "- Зимние сказки [2012] [худ. К. Павлова] 7016K - Сергей Григорьевич Козлов - Ксения Андреевна Павлова (иллюстратор)",
-			Link: "/b/821813",
+			Link:  "/b/821813",
 		},
 	}
 	hasNextPage := false
@@ -364,7 +366,6 @@ func (s *flibustaParserSuite) Test_GetBooksPaginated_NotEnoughBooks() {
 	assert.Equal(s.T(), hasNextPage, hasNextPageRes)
 	assert.Equal(s.T(), true, gock.IsDone())
 }
-
 
 func (s *flibustaParserSuite) Test_GetBooksPaginated_ParsingErr() {
 	defer gock.Off()
